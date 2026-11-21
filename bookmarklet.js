@@ -1,0 +1,1 @@
+javascript:(()=>{const s=document.createElement('script');s.src='https://raw.githubusercontent.com/sspeth000/websiteclientcloner/main/capture.js';s.onload=()=>console.info('[WebsiteClientCloner] Loader started');s.onerror=()=>alert('WebsiteClientCloner could not load. Check the repository URL and connection.');document.documentElement.appendChild(s)})()
