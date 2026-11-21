@@ -1,5 +1,7 @@
-const script = document.createElement("script");
-script.src = "https://github.com/sspeth000/websiteclientcloner/raw/refs/heads/main/capture.js";
-script.onload = () => console.info("[WebsiteClientCloner] Capture loader started.");
-script.onerror = () => console.error("[WebsiteClientCloner] GitHub did not deliver capture.js. Check the browser's Console and Network panels for the actual CSP, redirect, or network error.");
-(document.head || document.documentElement).appendChild(script);
+(() => {
+  const script = document.createElement("script");
+  script.src = "https://raw.githubusercontent.com/sspeth000/websiteclientcloner/main/capture.js";
+  script.onload = () => console.info("[WebsiteClientCloner] Capture engine loaded.");
+  script.onerror = () => console.error("[WebsiteClientCloner] Failed to load capture.js from raw.githubusercontent.com. Check the Network panel for the exact request error.");
+  (document.head || document.documentElement).appendChild(script);
+})();
