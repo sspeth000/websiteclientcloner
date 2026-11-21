@@ -7,7 +7,7 @@
   }
 
   const state = {
-    active: true,
+    active: false,
     urls: new Set(),
     observer: null,
     panel: null,
@@ -19,147 +19,201 @@
       } catch {}
     },
     open() {
-      this.panel?.removeAttribute("hidden");
+      if (this.panel) this.panel.hidden = false;
     }
   };
-  window.__siteCapture = state;
 
-  const collectExisting = () => {
-    state.add(location.href);
-    performance.getEntriesByType("resource").forEach(entry => state.add(entry.name));
-  };
-  collectExisting();
-
-  if ("PerformanceObserver" in window) {
-    try {
-      state.observer = new PerformanceObserver(list => {
-        list.getEntries().forEach(entry => state.add(entry.name));
-        updateCount();
-      });
-      state.observer.observe({ type: "resource", buffered: true });
-    } catch {}
+  function make(tag, text, className) {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
   }
 
-  const panel = document.createElement("section");
-  panel.id = "__site_capture_panel";
-  panel.setAttribute("role", "region");
-  panel.setAttribute("aria-label", "WebsiteClientCloner");
-  panel.innerHTML = `
-    <style>
-      #__site_capture_panel {
-        position: fixed;
-        z-index: 2147483647;
-        right: max(12px, env(safe-area-inset-right));
-        bottom: max(12px, env(safe-area-inset-bottom));
-        width: min(390px, calc(100vw - 24px));
-        max-height: min(58vh, 520px);
-        overflow: auto;
-        overscroll-behavior: contain;
-        box-sizing: border-box;
-        padding: 14px;
-        color: #f5f6fa;
-        background: #17191f;
-        border: 1px solid #505765;
-        border-radius: 16px;
-        box-shadow: 0 8px 34px #0009;
-        font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-        -webkit-text-size-adjust: 100%;
-      }
-      #__site_capture_panel * { box-sizing: border-box; }
-      #__site_capture_panel .wcc-head {
-        display: flex; align-items: center; justify-content: space-between; gap: 10px;
-        margin-bottom: 8px;
-      }
-      #__site_capture_panel .wcc-title { font-size: 16px; font-weight: 700; }
-      #__site_capture_panel .wcc-description { margin: 6px 0 10px; color: #c4cad5; }
-      #__site_capture_panel .wcc-status {
-        min-height: 44px; padding: 10px 11px; margin: 10px 0;
-        border-radius: 10px; background: #252a34; color: #e7edf8;
-        overflow-wrap: anywhere;
-      }
-      #__site_capture_panel .wcc-actions {
-        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
-      }
-      #__site_capture_panel button {
-        min-height: 46px; padding: 10px 12px; border: 0; border-radius: 10px;
-        color: white; background: #315caa; font: inherit; font-weight: 600;
-        touch-action: manipulation; cursor: pointer;
-      }
-      #__site_capture_panel button:disabled { opacity: .55; cursor: wait; }
-      #__site_capture_panel button.wcc-secondary { background: #343b48; }
-      #__site_capture_panel .wcc-note { margin: 10px 0 0; color: #aeb8c8; font-size: 12px; }
-      @media (max-width: 480px) {
-        #__site_capture_panel { right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); width: calc(100vw - 16px); padding: 12px; }
-        #__site_capture_panel .wcc-actions { grid-template-columns: 1fr 1fr; }
-      }
-    </style>
-    <div class="wcc-head">
-      <div class="wcc-title">WebsiteClientCloner</div>
-      <button class="wcc-secondary" data-action="hide" type="button" aria-label="Hide capture panel">Hide</button>
-    </div>
-    <p class="wcc-description">Browse the page to collect its resource URLs, then save the accessible files into a ZIP.</p>
-    <div class="wcc-status" data-status role="status" aria-live="polite">Starting resource watcher…</div>
-    <div class="wcc-actions">
-      <button data-action="refresh" type="button">Refresh count</button>
-      <button data-action="download" type="button">Save ZIP</button>
-      <button class="wcc-secondary" data-action="stop" type="button">Stop watcher</button>
-      <button class="wcc-secondary" data-action="hide" type="button">Minimize</button>
-    </div>
-    <p class="wcc-note">Mobile tip: keep this tab open while browsing. Large captures may need substantial device memory. Browser security rules can prevent some files from being saved.</p>
-  `;
-
-  document.documentElement.appendChild(panel);
-  state.panel = panel;
-  state.status = panel.querySelector("[data-status]");
+  function setStyles(node, styles) {
+    Object.assign(node.style, styles);
+    return node;
+  }
 
   function updateStatus(message) {
     if (state.status) state.status.textContent = message;
   }
+
   function updateCount() {
     updateStatus(state.urls.size + " unique resource URLs collected.");
   }
-  updateCount();
 
-  panel.addEventListener("click", async event => {
-    const button = event.target.closest("button[data-action]");
-    if (!button) return;
-    const action = button.dataset.action;
+  try {
+    const panel = make("section");
+    panel.id = "__site_capture_panel";
+    panel.setAttribute("role", "region");
+    panel.setAttribute("aria-label", "WebsiteClientCloner");
 
-    if (action === "hide") {
-      panel.setAttribute("hidden", "");
-      return;
-    }
-    if (action === "refresh") {
-      collectExisting();
-      updateCount();
-      return;
-    }
-    if (action === "stop") {
-      state.observer?.disconnect();
-      state.observer = null;
-      updateStatus("Watcher stopped. You can still save a ZIP of the collected URLs.");
-      button.disabled = true;
-      return;
-    }
-    if (action === "download") {
-      collectExisting();
-      const downloadButton = panel.querySelector('[data-action="download"]');
-      downloadButton.disabled = true;
-      panel.querySelectorAll("button[data-action]").forEach(b => {
-        if (b !== downloadButton && b.dataset.action !== "hide") b.disabled = true;
+    setStyles(panel, {
+      position: "fixed",
+      zIndex: "2147483647",
+      right: "max(8px, env(safe-area-inset-right))",
+      bottom: "max(8px, env(safe-area-inset-bottom))",
+      width: "min(390px, calc(100vw - 16px))",
+      maxHeight: "min(58vh, 520px)",
+      overflow: "auto",
+      overscrollBehavior: "contain",
+      boxSizing: "border-box",
+      padding: "12px",
+      color: "#f5f6fa",
+      background: "#17191f",
+      border: "1px solid #505765",
+      borderRadius: "16px",
+      boxShadow: "0 8px 34px #0009",
+      font: "14px/1.45 -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif",
+      WebkitTextSizeAdjust: "100%"
+    });
+
+    const header = setStyles(make("div"), {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "10px",
+      marginBottom: "8px"
+    });
+    const title = setStyles(make("div", "WebsiteClientCloner"), {
+      fontSize: "16px",
+      fontWeight: "700"
+    });
+
+    function makeButton(label, action, secondary) {
+      const button = make("button", label);
+      button.type = "button";
+      button.dataset.action = action;
+      button.setAttribute("aria-label", label);
+      setStyles(button, {
+        minHeight: "46px",
+        padding: "10px 12px",
+        border: "0",
+        borderRadius: "10px",
+        color: "#fff",
+        background: secondary ? "#343b48" : "#315caa",
+        font: "inherit",
+        fontWeight: "600",
+        touchAction: "manipulation",
+        cursor: "pointer"
       });
+      return button;
+    }
+
+    const hideTop = makeButton("Hide", "hide", true);
+    header.append(title, hideTop);
+
+    const description = setStyles(
+      make("p", "Browse the page to collect its resource URLs, then save accessible files into a ZIP."),
+      { margin: "6px 0 10px", color: "#c4cad5" }
+    );
+
+    const status = setStyles(make("div", "Starting resource watcher…"), {
+      minHeight: "44px",
+      padding: "10px 11px",
+      margin: "10px 0",
+      borderRadius: "10px",
+      background: "#252a34",
+      color: "#e7edf8",
+      overflowWrap: "anywhere"
+    });
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+
+    const actions = setStyles(make("div"), {
+      display: "grid",
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+      gap: "8px"
+    });
+    const refreshButton = makeButton("Refresh count", "refresh", false);
+    const downloadButton = makeButton("Save ZIP", "download", false);
+    const stopButton = makeButton("Stop watcher", "stop", true);
+    const minimizeButton = makeButton("Minimize", "hide", true);
+    actions.append(refreshButton, downloadButton, stopButton, minimizeButton);
+
+    const note = setStyles(
+      make("p", "Mobile tip: keep this tab open while browsing. Large captures can use substantial device memory. Browser security rules may prevent some files from being saved."),
+      { margin: "10px 0 0", color: "#aeb8c8", fontSize: "12px" }
+    );
+
+    panel.append(header, description, status, actions, note);
+    (document.body || document.documentElement).appendChild(panel);
+
+    state.panel = panel;
+    state.status = status;
+    state.active = true;
+    window.__siteCapture = state;
+
+    function collectExisting() {
+      state.add(location.href);
+      performance.getEntriesByType("resource").forEach(entry => state.add(entry.name));
+    }
+
+    collectExisting();
+    updateCount();
+
+    if ("PerformanceObserver" in window) {
       try {
-        await buildZip(updateStatus);
-      } catch (error) {
-        updateStatus("ZIP failed: " + (error?.message || String(error)));
-      } finally {
-        downloadButton.disabled = false;
-        panel.querySelectorAll("button[data-action]").forEach(b => {
-          if (b.dataset.action !== "stop" || state.observer) b.disabled = false;
+        state.observer = new PerformanceObserver(list => {
+          list.getEntries().forEach(entry => state.add(entry.name));
+          updateCount();
         });
+        state.observer.observe({ type: "resource", buffered: true });
+      } catch (error) {
+        console.warn("[WebsiteClientCloner] Resource observer unavailable:", error);
       }
     }
-  });
+
+    panel.addEventListener("click", async event => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const action = button.dataset.action;
+
+      if (action === "hide") {
+        panel.hidden = true;
+        return;
+      }
+      if (action === "refresh") {
+        collectExisting();
+        updateCount();
+        return;
+      }
+      if (action === "stop") {
+        state.observer?.disconnect();
+        state.observer = null;
+        updateStatus("Watcher stopped. You can still save a ZIP of collected URLs.");
+        stopButton.disabled = true;
+        return;
+      }
+      if (action === "download") {
+        collectExisting();
+        downloadButton.disabled = true;
+        refreshButton.disabled = true;
+        stopButton.disabled = true;
+        minimizeButton.disabled = true;
+        try {
+          await buildZip(updateStatus);
+        } catch (error) {
+          updateStatus("ZIP failed: " + (error?.message || String(error)));
+          console.error("[WebsiteClientCloner] ZIP failed:", error);
+        } finally {
+          downloadButton.disabled = false;
+          refreshButton.disabled = false;
+          minimizeButton.disabled = false;
+          stopButton.disabled = !state.observer;
+        }
+      }
+    });
+
+    console.info("[WebsiteClientCloner] Capture engine initialized.");
+  } catch (error) {
+    state.active = false;
+    state.observer?.disconnect();
+    console.error("[WebsiteClientCloner] Initialization failed:", error);
+    alert("WebsiteClientCloner could not initialize: " + (error?.message || String(error)));
+    return;
+  }
 
   async function ensureZipLibrary() {
     if (window.JSZip) return;
@@ -216,7 +270,8 @@
     const queue = urls.slice();
     let cursor = 0;
     // Lower concurrency and skip CPU-heavy compression on phones/tablets.
-    const isTouchDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);\n    const concurrency = isTouchDevice ? 2 : 4;
+    const isTouchDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const concurrency = isTouchDevice ? 2 : 4;
 
     async function worker() {
       while (cursor < queue.length) {
