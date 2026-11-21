@@ -216,7 +216,7 @@
     const queue = urls.slice();
     let cursor = 0;
     // Lower concurrency and skip CPU-heavy compression on phones/tablets.
-    const concurrency = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 2 : 4;
+    const isTouchDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);\n    const concurrency = isTouchDevice ? 2 : 4;
 
     async function worker() {
       while (cursor < queue.length) {
