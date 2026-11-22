@@ -12,28 +12,26 @@ A browser-side website resource capture prototype. It records HTTP(S) resource U
 
 ## PC console edition
 
-The PC edition is designed for desktop Chromium-based browsers and other browsers that support the required web APIs. It runs without a capture panel and exposes a small console API.
+The PC edition is designed for desktop browsers and injects a draggable on-screen control panel into the page. You only need the console to launch it. The panel provides Start Capture, Stop Capture, Build ZIP, Clear Data, live resource counts, and export progress.
 
 ### Use
 
 1. Open a website you own or are authorized to capture.
 2. Open Developer Tools and select the Console.
-3. Paste the complete contents of `pc-console-loader.js` into the console and run it.
-4. Browse the site and interact with the pages you want to include.
-5. Run `WCC.status()` to inspect capture progress.
-6. Run `WCC.stop()` to stop observing new resources.
-7. Run `await WCC.exportZip()` to fetch accessible resources and download the ZIP.
+3. Paste the complete contents of `pc-console-loader.js` into the console and run it once.
+4. The WebsiteClientCloner panel appears in the bottom-right corner. Drag it by its header to reposition it.
+5. Click **Start capture**, browse the site, then click **Stop capture**.
+6. Click **Build ZIP** to fetch accessible resources and download the archive.
+7. Use **Clear data** to reset the current capture.
 
 ### Console commands
 
-- `WCC.start()` - begin observing resource loads.
-- `WCC.stop()` - stop observing new resource loads.
+The panel handles the normal workflow. Optional console helpers remain available:
 - `WCC.status()` - print capture statistics and current configuration.
 - `WCC.list()` - return the observed resource list.
 - `WCC.failures()` - return resources that could not be fetched.
-- `await WCC.exportZip()` - fetch observed resources and build the ZIP.
+- `WCC.show()` / `WCC.hide()` - show or hide the panel.
 - `WCC.abort()` - abort active fetch work.
-- `WCC.clear()` - clear collected capture data.
 
 Configuration can be changed through `WCC.config` before export:
 
