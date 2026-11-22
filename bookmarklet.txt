@@ -1,1 +1,0 @@
-javascript:(()=>{fetch('https://raw.githubusercontent.com/sspeth000/websiteclientcloner/main/capture.js').then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.text()}).then(code=>{const s=document.createElement('script');s.textContent=code;(document.head||document.documentElement).appendChild(s);s.remove()}).catch(e=>alert('WebsiteClientCloner: '+e.message))})();
