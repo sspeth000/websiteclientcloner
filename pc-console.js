@@ -368,8 +368,89 @@
       if (api._abortController) api._abortController.abort();
       log.warn("Active fetch work aborted.");
     },
-    _abortController: null
+    _abortController: null,
+    show: () => { createPanel(); if (panelHost) panelHost.style.display = "block"; refreshPanel(); },
+    hide: () => { if (panelHost) panelHost.style.display = "none"; }
   };
+
+
+  let panelHost = null;
+  let panelRoot = null;
+
+  function createPanel() {
+    if (panelHost && panelHost.isConnected) return;
+    panelHost = document.createElement("div");
+    panelHost.id = "wcc-pc-overlay";
+    panelHost.style.cssText = "all:initial;position:fixed;right:22px;bottom:22px;z-index:2147483647;";
+    panelRoot = panelHost.attachShadow({mode:"open"});
+    panelRoot.innerHTML = '<style>*{box-sizing:border-box}.panel{width:320px;color:#e8edf5;background:#111827;border:1px solid #344256;border-radius:13px;box-shadow:0 14px 45px #0008;font:13px/1.45 system-ui,sans-serif;overflow:hidden}.top{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#172235;border-bottom:1px solid #2a394d;cursor:move;user-select:none}.brand{font-weight:700;letter-spacing:.2px}.version{color:#8fa2bb;font-size:10px;margin-left:7px}.minimize{border:0;background:transparent;color:#b8c6d8;font-size:18px;cursor:pointer}.body{padding:13px 14px 14px}.status{display:flex;align-items:center;gap:8px;color:#a9b8ca;font-size:12px;margin-bottom:12px}.lamp{width:8px;height:8px;border-radius:50%;background:#64748b}.status.live .lamp{background:#34d399;box-shadow:0 0 9px #34d39988}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px}.stat{background:#1b293b;border:1px solid #2b3b50;border-radius:9px;padding:9px 8px}.stat strong{display:block;font-size:19px;color:#f8fafc}.stat span{display:block;color:#91a4bb;font-size:10px}.meter{height:5px;background:#26364b;border-radius:9px;overflow:hidden;margin:7px 0}.meter span{display:block;height:100%;width:0;background:linear-gradient(90deg,#38bdf8,#34d399);transition:width .2s}.hint{min-height:18px;color:#91a4bb;font-size:11px;margin:9px 0 12px;overflow-wrap:anywhere}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}button.action{border:1px solid #3a4b61;border-radius:8px;padding:9px 10px;background:#23344a;color:#e8edf5;font:600 12px system-ui,sans-serif;cursor:pointer}button.action:hover{background:#30465f}button.primary{background:#087eaa;border-color:#0ea5d5;color:white}button.action:disabled{opacity:.45;cursor:not-allowed}.foot{display:flex;justify-content:space-between;margin-top:11px;color:#71849c;font-size:10px}.hide{border:0;padding:0;color:#7dd3fc;background:transparent;cursor:pointer;font:inherit}.collapsed .body{display:none}@media(max-width:420px){.panel{width:min(320px,calc(100vw - 24px))}}</style><section class="panel"><header class="top"><div class="brand">● WebsiteClientCloner <span class="version">PC</span></div><button class="minimize" title="Minimize">−</button></header><div class="body"><div class="status"><i class="lamp"></i><span class="state">Ready to capture</span></div><div class="stats"><div class="stat"><strong class="observed">0</strong><span>Observed</span></div><div class="stat"><strong class="saved">0</strong><span>Saved</span></div><div class="stat"><strong class="failed">0</strong><span>Unavailable</span></div></div><div class="meter"><span></span></div><div class="hint">Browse this site while capture is active, then build your ZIP.</div><div class="actions"><button class="action start">Start capture</button><button class="action stop">Stop capture</button><button class="action primary export">Build ZIP</button><button class="action clear">Clear data</button></div><div class="foot"><span class="size">0 B saved</span><button class="hide">Hide panel</button></div></div></section>';
+
+    const $ = (selector) => panelRoot.querySelector(selector);
+    const panel = $(".panel");
+    $(".start").addEventListener("click", () => { start(); refreshPanel(); });
+    $(".stop").addEventListener("click", () => { stop(); refreshPanel(); });
+    $(".export").addEventListener("click", async () => {
+      $(".export").disabled = true;
+      $(".hint").textContent = "Fetching resources and building ZIP…";
+      try { await exportZip(); }
+      catch (error) { log.error("ZIP export failed:", error); $(".hint").textContent = "Export failed: " + (error.message || error); }
+      finally { $(".export").disabled = false; refreshPanel(); }
+    });
+    $(".clear").addEventListener("click", () => {
+      if (confirm("Clear all observed URLs and captured data?")) { clear(); refreshPanel(); }
+    });
+    $(".minimize").addEventListener("click", () => panel.classList.toggle("collapsed"));
+    $(".top").addEventListener("dblclick", () => panel.classList.toggle("collapsed"));
+    $(".hide").addEventListener("click", () => { panelHost.style.display = "none"; });
+
+    let drag = null;
+    $(".top").addEventListener("pointerdown", (event) => {
+      if (event.target.closest("button")) return;
+      const rect = panelHost.getBoundingClientRect();
+      drag = {x:event.clientX,y:event.clientY,left:rect.left,top:rect.top};
+      $(".top").setPointerCapture(event.pointerId);
+    });
+    $(".top").addEventListener("pointermove", (event) => {
+      if (!drag) return;
+      panelHost.style.left = Math.max(0,Math.min(innerWidth-panelHost.offsetWidth,drag.left+event.clientX-drag.x))+"px";
+      panelHost.style.top = Math.max(0,Math.min(innerHeight-48,drag.top+event.clientY-drag.y))+"px";
+      panelHost.style.right = "auto";
+      panelHost.style.bottom = "auto";
+    });
+    $(".top").addEventListener("pointerup", () => {drag=null;});
+    $(".top").addEventListener("pointercancel", () => {drag=null;});
+    (document.documentElement || document.body).appendChild(panelHost);
+    refreshPanel();
+    setInterval(refreshPanel,700);
+  }
+
+  function refreshPanel() {
+    if (!panelRoot || !panelHost || !panelHost.isConnected) return;
+    const $ = (selector) => panelRoot.querySelector(selector);
+    const observed=resources.size, savedCount=saved.size, failedCount=failures.length;
+    $(".observed").textContent=observed.toLocaleString();
+    $(".saved").textContent=savedCount.toLocaleString();
+    $(".failed").textContent=failedCount.toLocaleString();
+    $(".size").textContent=formatBytes(totalBytes)+" saved";
+    const fetching=!!api._abortController;
+    $(".state").textContent=fetching?"Building archive…":running?"Capture is running":"Capture is paused";
+    $(".status").classList.toggle("live",running||fetching);
+    $(".meter span").style.width=(fetching&&observed?Math.min(100,completed/observed*100):observed?Math.min(100,savedCount/observed*100):0)+"%";
+    $(".start").disabled=running||fetching;
+    $(".stop").disabled=!running||fetching;
+    $(".export").disabled=fetching||observed===0;
+    $(".clear").disabled=fetching;
+    if(fetching) $(".hint").textContent="Processed "+completed+" of "+observed+" resources…";
+    else if(!observed) $(".hint").textContent="Browse this site while capture is active, then build your ZIP.";
+    else $(".hint").textContent=savedCount+" saved, "+failedCount+" unavailable. Select Build ZIP to export.";
+  }
+
+  function formatBytes(bytes) {
+    if(!bytes) return "0 B";
+    const units=["B","KB","MB","GB"];
+    const index=Math.min(units.length-1,Math.floor(Math.log(bytes)/Math.log(1024)));
+    return (bytes/Math.pow(1024,index)).toFixed(index?1:0)+" "+units[index];
+  }
 
   Object.defineProperty(window, "WCC", {
     value: api,
@@ -378,6 +459,7 @@
     writable: false
   });
 
+  createPanel();
   start();
   log.info("PC console edition " + VERSION + " ready.");
   log.info("Commands: WCC.status(), WCC.stop(), WCC.exportZip(), WCC.abort(), WCC.clear()");
